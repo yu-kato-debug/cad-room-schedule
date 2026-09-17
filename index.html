@@ -138,68 +138,62 @@
   </div>
 
   <script>
-    // ▼▼▼ ここにスプレッドシートのCSV URLを貼り付けてください ▼▼▼
     const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ8CQNd4dEvIzxY0x401eFcgQZFmPQCP-t97gFK1iu3tSvHAd98_kxrPb3yDqnXegSAYigAGoZujCuL/pub?output=csv";
 
-    async function loadSchedule() {
+    function loadSchedule() {
       const appDiv = document.getElementById("app");
 
-      if (!CSV_URL || CSV_URL.includes("ここに")) {
-        appDiv.innerHTML = '<p class="error">CSV URLが設定されていません。</p>';
-        return;
-      }
+      Papa.parse(CSV_URL, {
+        download: true,
+        skipEmptyLines: false,
+        complete: function(results) {
+          const allData = results.data;
+          appDiv.innerHTML = "";
 
-      try {
-        const response = await fetch(CSV_URL);
-        const csvText = await response.text();
-        const parsed = Papa.parse(csvText, { skipEmptyLines: false });
-        const allData = parsed.data;
+          const targetSheets = ["B111", "B114"];
+          let renderedCount = 0;
 
-        appDiv.innerHTML = "";
-
-        const targetSheets = ["B111", "B114"];
-        let renderedCount = 0;
-
-        for (const targetName of targetSheets) {
-          let startIndex = -1;
-          for (let i = 0; i < allData.length; i++) {
-            if (allData[i][0] && allData[i][0].includes(targetName)) {
-              startIndex = i;
-              break;
+          for (const targetName of targetSheets) {
+            let startIndex = -1;
+            for (let i = 0; i < allData.length; i++) {
+              if (allData[i][0] && allData[i][0].includes(targetName)) {
+                startIndex = i;
+                break;
+              }
             }
-          }
 
-          if (startIndex !== -1) {
-            let extractedRows = [];
-            for (let j = startIndex; j < allData.length; j++) {
-              const row = allData[j];
-              const cell0 = row[0] ? row[0].toString() : "";
+            if (startIndex !== -1) {
+              let extractedRows = [];
+              for (let j = startIndex; j < allData.length; j++) {
+                const row = allData[j];
+                const cell0 = row[0] ? row[0].toString() : "";
 
-              if (j === startIndex) {
+                if (j === startIndex) {
+                  extractedRows.push(row);
+                  continue;
+                }
+                if (cell0.startsWith("B1") && j > startIndex + 1) break;
+                if (cell0 === "" && j > startIndex + 3) {
+                  if (j + 1 < allData.length && !allData[j+1][0]) break;
+                }
                 extractedRows.push(row);
-                continue;
               }
-              if (cell0.startsWith("B1") && j > startIndex + 1) break;
-              if (cell0 === "" && j > startIndex + 3) {
-                if (j + 1 < allData.length && !allData[j+1][0]) break;
-              }
-              extractedRows.push(row);
-            }
 
-            if (extractedRows.length > 0) {
-              renderScheduleBlock(appDiv, extractedRows);
-              renderedCount++;
+              if (extractedRows.length > 0) {
+                renderScheduleBlock(appDiv, extractedRows);
+                renderedCount++;
+              }
             }
           }
-        }
 
-        if (renderedCount === 0) {
-          appDiv.innerHTML = '<p class="error">該当する時間割データ（B111 / B114）が見つかりませんでした。</p>';
+          if (renderedCount === 0) {
+            appDiv.innerHTML = '<p class="error">該当する時間割データ（B111 / B114）が見つかりませんでした。</p>';
+          }
+        },
+        error: function(err) {
+          appDiv.innerHTML = '<p class="error">データの読み込みに失敗しました。<br>スプレッドシートのアクセス制限（公開設定）を確認してください。</p>';
         }
-      } catch (err) {
-        appDiv.innerHTML = '<p class="error">データの読み込みに失敗しました。</p>';
-        console.error(err);
-      }
+      });
     }
 
     function renderScheduleBlock(container, rows) {
