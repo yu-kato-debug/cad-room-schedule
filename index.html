@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif;
+      margin: 20px;
+      background-color: #fff;
+      color: #000;
+    }
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding-bottom: 50px;
+    }
+    .schedule-block {
+      margin-bottom: 60px;
+    }
+    .header-area {
+      position: relative;
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+    h2.sheet-title {
+      font-size: 2rem;
+      font-weight: bold;
+      margin: 0;
+      padding-bottom: 5px;
+      border-bottom: 3px solid #000;
+    }
+    .legend {
+      font-size: 1.1rem;
+      font-weight: bold;
+    }
+    .table-wrapper {
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 700px;
+      table-layout: fixed;
+    }
+    col.time-col { width: 12%; }
+    col.day-col { width: 17.6%; }
+
+    th, td {
+      border: 2px solid #000;
+      padding: 5px;
+      text-align: center;
+      vertical-align: middle;
+      font-size: 1.3rem;
+      height: 90px;
+      box-sizing: border-box;
+      overflow: hidden;
+      word-break: break-all;
+    }
+
+    th.header-cell {
+      line-height: 1.4;
+      height: auto;
+      padding: 15px 5px;
+    }
+    .date-text {
+      font-size: 1.4rem;
+      display: block;
+      font-weight: bold;
+    }
+    .day-text {
+      font-size: 1.2rem;
+      display: block;
+      margin-top: 5px;
+    }
+
+    th.time-slot {
+      font-weight: bold;
+      font-size: 1.3rem;
+    }
+
+    td.data-cell {
+      font-size: 2.5rem;
+      line-height: 1;
+      padding-bottom: 8px;
+    }
+    td.text-content {
+      font-size: 2.2rem;
+      font-weight: 800;
+      line-height: 1.2;
+      letter-spacing: 0.1rem;
+      color: #222;
+    }
+
+    tr.spacer-row td {
+      border: none;
+      height: 25px;
+      background-color: #fff !important;
+      padding: 0;
+    }
+    tr.spacer-row { border: none; }
+
+    @media (max-width: 600px) {
+      body { margin: 5px; }
+      .container { padding-bottom: 20px; }
+      .schedule-block { margin-bottom: 30px; }
+      h2.sheet-title { font-size: 1.2rem; }
+      .legend { font-size: 0.85rem; }
+      table { min-width: 100% !important; }
+      col.time-col { width: 15%; }
+      col.day-col { width: 17%; }
+
+      th, td {
+        font-size: 0.75rem;
+        height: 48px;
+        padding: 2px 1px;
+        border-width: 1px;
+      } 
+      th.header-cell { padding: 6px 1px; }
+      .date-text { font-size: 0.75rem; }
+      .day-text { font-size: 0.7rem; margin-top: 2px; }
+      th.time-slot { font-size: 0.75rem; }
+      td.data-cell { font-size: 1.1rem; padding-bottom: 2px; }
+      td.text-content { font-size: 0.8rem; line-height: 1.15; letter-spacing: 0; }
+      tr.spacer-row td { height: 12px; }
+    }
+    .loading { text-align: center; font-size: 1.2rem; margin-top: 50px; font-weight: bold; }
+    .error { color: red; text-align: center; margin-top: 20px; font-weight: bold; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+</head>
+<body>
+  <div class="container" id="app">
+    <div class="loading">時間割を読み込み中...</div>
+  </div>
+
+  <script>
+    // ▼▼▼ ここにスプレッドシートのCSV URLを貼り付けてください ▼▼▼
+    const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ8CQNd4dEvIzxY0x401eFcgQZFmPQCP-t97gFK1iu3tSvHAd98_kxrPb3yDqnXegSAYigAGoZujCuL/pub?output=csv";
+
+    async function loadSchedule() {
+      const appDiv = document.getElementById("app");
+
+      if (!CSV_URL || CSV_URL.includes("ここに")) {
+        appDiv.innerHTML = '<p class="error">CSV URLが設定されていません。</p>';
+        return;
+      }
+
+      try {
+        const response = await fetch(CSV_URL);
+        const csvText = await response.text();
+        const parsed = Papa.parse(csvText, { skipEmptyLines: false });
+        const allData = parsed.data;
+
+        appDiv.innerHTML = "";
+
+        const targetSheets = ["B111", "B114"];
+        let renderedCount = 0;
+
+        for (const targetName of targetSheets) {
+          let startIndex = -1;
+          for (let i = 0; i < allData.length; i++) {
+            if (allData[i][0] && allData[i][0].includes(targetName)) {
+              startIndex = i;
+              break;
+            }
+          }
+
+          if (startIndex !== -1) {
+            let extractedRows = [];
+            for (let j = startIndex; j < allData.length; j++) {
+              const row = allData[j];
+              const cell0 = row[0] ? row[0].toString() : "";
+
+              if (j === startIndex) {
+                extractedRows.push(row);
+                continue;
+              }
+              if (cell0.startsWith("B1") && j > startIndex + 1) break;
+              if (cell0 === "" && j > startIndex + 3) {
+                if (j + 1 < allData.length && !allData[j+1][0]) break;
+              }
+              extractedRows.push(row);
+            }
+
+            if (extractedRows.length > 0) {
+              renderScheduleBlock(appDiv, extractedRows);
+              renderedCount++;
+            }
+          }
+        }
+
+        if (renderedCount === 0) {
+          appDiv.innerHTML = '<p class="error">該当する時間割データ（B111 / B114）が見つかりませんでした。</p>';
+        }
+      } catch (err) {
+        appDiv.innerHTML = '<p class="error">データの読み込みに失敗しました。</p>';
+        console.error(err);
+      }
+    }
+
+    function renderScheduleBlock(container, rows) {
+      const block = document.createElement("div");
+      block.className = "schedule-block";
+
+      const titleText = rows[0] && rows[0][0] ? rows[0][0] : "";
+      const dateRow = rows[2] || [];
+      const dayRow = rows[3] || [];
+
+      let html = `
+        <div class="header-area">
+          <h2 class="sheet-title">${titleText}</h2>
+          <div class="legend">★→授業</div>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <colgroup>
+              <col class="time-col">
+              <col class="day-col"><col class="day-col"><col class="day-col"><col class="day-col"><col class="day-col">
+            </colgroup>
+            <thead>
+              <tr>
+                <th class="time-slot" style="border-bottom: 2px solid #000; background-color: #fff;"></th>
+      `;
+
+      for (let c = 1; c <= 5; c++) {
+        const dateVal = dateRow[c] || "";
+        const dayVal = dayRow[c] || "";
+        html += `
+          <th class="header-cell">
+            <span class="date-text">${dateVal}</span>
+            <span class="day-text">${dayVal}</span>
+          </th>
+        `;
+      }
+
+      html += `</tr></thead><tbody>`;
+
+      let isSeparated = false;
+      for (let r = 4; r < rows.length; r++) {
+        const rowData = rows[r];
+        if (!rowData || !rowData[0]) continue;
+        const label = rowData[0].toString();
+
+        if (label.includes("限") || label.includes("部")) {
+          if (label.includes("部") && !isSeparated) {
+            html += `<tr class="spacer-row"><td colspan="6"></td></tr>`;
+            isSeparated = true;
+          }
+
+          html += `<tr><th class="time-slot">${label}</th>`;
+          for (let c = 1; c <= 5; c++) {
+            const cellValue = rowData[c] ? rowData[c].toString() : "";
+            const cssClass = cellValue.includes("★") ? "data-cell" : "text-content";
+            html += `<td class="${cssClass}">${cellValue}</td>`;
+          }
+          html += `</tr>`;
+        }
+      }
+
+      html += `</tbody></table></div>`;
+      block.innerHTML = html;
+      container.appendChild(block);
+    }
+
+    loadSchedule();
+  </script>
+</body>
+</html>
